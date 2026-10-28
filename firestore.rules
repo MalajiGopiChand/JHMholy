@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function own(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function admin() {
+      return signedIn()
+        && (
+          request.auth.token.email == 'holy@gmail.com'
+          || request.auth.token.admin == true
+          || (
+            exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+            && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true
+          )
+        );
+    }
+
+    function approved() {
+      return signedIn()
+        && (
+          admin()
+          || (
+            exists(/databases/$(database)/documents/teachers/$(request.auth.uid))
+            && get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.approvalStatus == 'approved'
+            && (
+              !('phoneChangePending' in get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data)
+              || get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.phoneChangePending == null
+            )
+          )
+        );
+    }
+
+    // Teachers can read their own registration and approval status.
+    match /teachers/{uid} {
+      allow get: if own(uid) || admin();
+      allow list: if admin();
+      allow create: if signedIn();
+      allow update: if own(uid) || admin();
+      allow delete: if admin();
+
+      match /{privateDocument=**} {
+        allow read, write: if admin();
+      }
+    }
+
+    match /admins/{uid} {
+      allow get: if own(uid) || admin();
+      allow list: if admin();
+      allow create, update: if own(uid) || admin();
+      allow delete: if false;
+    }
+
+    // Sync timestamp used to refresh app data.
+    match /sync/changes {
+      allow read: if signedIn();
+      allow write: if admin() || approved();
+    }
+
+    // Operational ministry collections
+    match /students/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    match /attendance/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    match /points/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    match /announcements/{id} {
+      allow read: if admin() || approved();
+      allow write: if admin();
+    }
+
+    match /schedules/{id} {
+      allow read: if admin() || approved();
+      allow write: if admin();
+      allow update: if admin() || approved();
+    }
+
+    match /stories/{id} {
+      allow read: if admin() || approved();
+      allow write: if admin();
+    }
+
+    match /places/{id} {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+
+    match /classes/{id} {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+
+    match /settings/{id} {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+
+    match /attendanceDays/{id} {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+
+    // Ministry extended modules
+    match /homework/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    match /messages/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    match /staffAttendance/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    match /staffReports/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    match /offerings/{id} {
+      allow read: if admin() || approved();
+      allow create, update: if admin() || approved();
+      allow delete: if admin();
+    }
+
+    // Finance is restricted to administrators
+    match /finance/{id} {
+      allow read, write: if admin();
+    }
+
+    match /complaints/{id} {
+      allow read: if admin() || (approved() && resource.data.createdBy == request.auth.uid);
+      allow create: if admin() || approved();
+      allow update: if admin();
+      allow delete: if admin();
+    }
+
+    // Audit and system records
+    match /auditLogs/{id} {
+      allow read: if admin();
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    match /staffAttendanceLocks/{id} {
+      allow read, write: if admin() || approved();
+    }
+
+    match /studentIdReservations/{id} {
+      allow read, write: if admin() || approved();
+    }
+
+    match /requests/{id} {
+      allow read, write: if admin() || approved();
+    }
+
+    match /registrationLimits/{id} {
+      allow read, write: if signedIn();
+    }
+
+    match /scheduleLocks/{id} {
+      allow read, write: if admin() || approved();
+    }
+
+    match /{document=**} {
+      allow read, write: if admin();
+    }
+  }
+}

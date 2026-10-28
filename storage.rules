@@ -1,0 +1,8 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Student and teacher photos are not collected by this version.
+    // Ministry artwork ships as public static app assets.
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}
