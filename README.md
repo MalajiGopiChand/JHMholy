@@ -1,6 +1,6 @@
-# Holy Ministries mobile app
+# JYOTHIRMAYUNI HOLY MINISTERS mobile app
 
-Mobile-first React + React Native for Web PWA for Jyothirmayuni Holy Ministries. Uses the supplied logo and Firebase project `jhmholy`. Installable through a published HTTPS address in Chrome on Android and Safari on iPhone; this is not an APK.
+Mobile-first React + React Native for Web PWA for JYOTHIRMAYUNI HOLY MINISTERS. Uses the supplied logo and Firebase project `jhmholy`. Installable through a published HTTPS address in Chrome on Android and Safari on iPhone; this is not an APK.
 
 ## Run
 
