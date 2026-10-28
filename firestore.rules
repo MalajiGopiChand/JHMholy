@@ -99,7 +99,7 @@ service cloud.firestore {
 
     match /places/{id} {
       allow read: if signedIn();
-      allow write: if admin();
+      allow write: if admin() || approved();
     }
 
     match /classes/{id} {

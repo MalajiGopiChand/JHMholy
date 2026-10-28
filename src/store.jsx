@@ -30,11 +30,6 @@ const blank=()=>({
   announcements:[],places:[],classes:[],attendanceDays:[],auditLogs:[]
 });
 
-const DEFAULT_PLACES=[
-  {id:'gannavaram',name:'Gannavaram (Main Branch)',active:true},
-  {id:'kanuru',name:'Kanuru Branch',active:true}
-];
-
 const DEFAULT_CLASSES=[
   {id:'beginners',name:'Beginners (Age 3-5)',active:true},
   {id:'primary',name:'Primary (Age 6-8)',active:true},
@@ -64,6 +59,7 @@ async function directFirestoreMutate(action,payload,profile){
         enrolledDate:localDate(),
         active:true,
         createdBy:profile?.id||'admin',
+        createdByName:profile?.fullName||'Ministry Teacher',
         createdAt:ts,
         updatedAt:ts
       };
@@ -337,18 +333,28 @@ async function fetchDirectFirestoreData(currentProfile){
       let docs=snap.docs.map(d=>({id:d.id,...d.data()}));
 
       if(!isAdmin){
-        if(['students','attendance','points'].includes(colName)){
-          docs=allowedPlaceIds.length?docs.filter(d=>allowedPlaceIds.includes(d.placeId)):[];
+        const userPlaces=[
+          ...(allowedPlaceIds||[]),
+          currentProfile?.requestedPlace,
+          currentProfile?.requestedPlace?currentProfile.requestedPlace.toLowerCase().replace(/[^a-z0-9_-]/g,'_'):null
+        ].filter(Boolean).map(x=>String(x).toLowerCase());
+
+        const placeMatch=pid=>pid&&(allowedPlaceIds.includes(pid)||userPlaces.includes(String(pid).toLowerCase()));
+
+        if(colName==='students'){
+          docs=docs.filter(s=>s.createdBy===currentProfile?.id||placeMatch(s.placeId));
+        }else if(['attendance','points'].includes(colName)){
+          docs=docs.filter(d=>placeMatch(d.placeId)||d.markedByUid===currentProfile?.id||d.awardedByUid===currentProfile?.id);
         }else if(colName==='places'){
-          docs=docs.filter(p=>allowedPlaceIds.includes(p.id));
+          docs=docs.filter(p=>p.active!==false);
         }else if(colName==='schedules'){
-          docs=docs.filter(s=>s.status!=='draft'&&s.status!=='cancelled'&&(s.audienceType==='allPlaces'||allowedPlaceIds.includes(s.placeId)));
+          docs=docs.filter(s=>s.status!=='draft'&&s.status!=='cancelled'&&(s.audienceType==='allPlaces'||placeMatch(s.placeId)||s.teacherUid===currentProfile?.id));
         }else if(colName==='announcements'){
           docs=docs.filter(n=>n.status==='published');
         }else if(['complaints','staffReports','staffAttendance'].includes(colName)){
-          docs=docs.filter(r=>r.createdBy===currentProfile.id||allowedPlaceIds.includes(r.placeId));
+          docs=docs.filter(r=>r.createdBy===currentProfile?.id||r.teacherUid===currentProfile?.id||placeMatch(r.placeId));
         }else if(['homework','messages','offerings'].includes(colName)){
-          docs=docs.filter(r=>allowedPlaceIds.includes(r.placeId));
+          docs=docs.filter(r=>placeMatch(r.placeId));
         }
       }
       if(colName==='points')docs=docs.filter(p=>!p.deleted);
@@ -359,13 +365,40 @@ async function fetchDirectFirestoreData(currentProfile){
     }
   }));
 
-  // Auto-seed default places and classes if empty
-  if(isAdmin&&out.places.length===0){
-    for(const dp of DEFAULT_PLACES){
-      await setDoc(doc(db,'places',dp.id),dp,{merge:true}).catch(()=>{});
-      out.places.push(dp);
+  // Dynamically discover places from places collection, teachers (requestedPlace, allowedPlaceIds), and students (placeId)
+  const placeMap=new Map();
+  for(const p of out.places){
+    if(p?.id)placeMap.set(String(p.id).toLowerCase(),p);
+  }
+  for(const t of (out.teachers||[])){
+    if(t.requestedPlace&&typeof t.requestedPlace==='string'&&t.requestedPlace.trim()){
+      const pName=t.requestedPlace.trim();
+      const pId=pName.toLowerCase().replace(/[^a-z0-9_-]/g,'_');
+      if(!placeMap.has(pId)){
+        const pObj={id:pId,name:pName,active:true};
+        placeMap.set(pId,pObj);
+        out.places.push(pObj);
+      }
+    }
+    if(Array.isArray(t.allowedPlaceIds)){
+      for(const ap of t.allowedPlaceIds){
+        if(ap&&!placeMap.has(String(ap).toLowerCase())){
+          const pObj={id:ap,name:ap,active:true};
+          placeMap.set(String(ap).toLowerCase(),pObj);
+          out.places.push(pObj);
+        }
+      }
     }
   }
+  for(const s of (out.students||[])){
+    if(s.placeId&&!placeMap.has(String(s.placeId).toLowerCase())){
+      const pObj={id:s.placeId,name:s.placeNameSnapshot||s.placeId,active:true};
+      placeMap.set(String(s.placeId).toLowerCase(),pObj);
+      out.places.push(pObj);
+    }
+  }
+
+  // Auto-seed default classes if empty
   if(isAdmin&&out.classes.length===0){
     for(const dc of DEFAULT_CLASSES){
       await setDoc(doc(db,'classes',dc.id),dc,{merge:true}).catch(()=>{});
