@@ -54,8 +54,9 @@ async function directFirestoreMutate(action,payload,profile){
         motherName:String(payload.motherName||'').trim(),
         mobileNumber:payload.mobileNumber?normalizePhone(payload.mobileNumber):'',
         dateOfBirth:payload.dateOfBirth,
-        classId:payload.classId,
-        placeId:payload.placeId,
+        classId:payload.classId||'general',
+        placeId:payload.placeId||(profile?.requestedPlace?.toLowerCase()?.replace(/[^a-z0-9_-]/g,'_'))||'agiripalli',
+        placeNameSnapshot:payload.placeNameSnapshot||profile?.requestedPlace||payload.placeId||'agiripalli',
         enrolledDate:localDate(),
         active:true,
         createdBy:profile?.id||'admin',
@@ -75,7 +76,7 @@ async function directFirestoreMutate(action,payload,profile){
         motherName:String(payload.motherName||'').trim(),
         mobileNumber:payload.mobileNumber?normalizePhone(payload.mobileNumber):'',
         dateOfBirth:payload.dateOfBirth,
-        classId:payload.classId,
+        classId:payload.classId||'general',
         updatedAt:ts,
         updatedBy:profile?.id||'admin'
       };
